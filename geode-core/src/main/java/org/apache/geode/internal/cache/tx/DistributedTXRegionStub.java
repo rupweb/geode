@@ -45,7 +45,6 @@ import org.apache.geode.internal.cache.RemoteContainsKeyValueMessage.RemoteConta
 import org.apache.geode.internal.cache.RemoteOperationMessage.RemoteOperationResponse;
 import org.apache.geode.internal.cache.RemotePutMessage.PutResult;
 import org.apache.geode.internal.cache.RemotePutMessage.RemotePutResponse;
-import org.apache.geode.internal.cache.partitioned.RemoteSizeMessage;
 import org.apache.geode.internal.cache.tier.sockets.ClientProxyMembershipID;
 import org.apache.geode.internal.cache.tier.sockets.VersionedObjectList;
 import org.apache.geode.internal.i18n.LocalizedStrings;
@@ -224,18 +223,7 @@ public class DistributedTXRegionStub extends AbstractPeerTXRegionStub {
 
 
   public int entryCount() {
-    try {
-      RemoteSizeMessage.SizeResponse response =
-          RemoteSizeMessage.send(Collections.singleton(state.getTarget()), region);
-      return response.waitForSize();
-    } catch (RegionDestroyedException rde) {
-      throw new TransactionDataNotColocatedException(
-          LocalizedStrings.RemoteMessage_REGION_0_NOT_COLOCATED_WITH_TRANSACTION
-              .toLocalizedString(rde.getRegionFullPath()),
-          rde);
-    } catch (Exception e) {
-      throw new TransactionException(e);
-    }
+    return this.region.getRegionSize(this.state.getTarget());
   }
 
 

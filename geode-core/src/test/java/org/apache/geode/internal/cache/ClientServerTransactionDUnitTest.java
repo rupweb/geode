@@ -4065,4 +4065,157 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
       Assert.fail("Unexpected exception while doing JTA Transaction2 ", e);
     }
   }
+
+  @Test
+  public void testPartitionMessageSetsClientMemberIdAsTxMemberId() {
+    Host host = Host.getHost(0);
+    VM server1 = host.getVM(0);
+    VM client = host.getVM(2);
+    int totalBuckets = 50;
+    String regionName = "region";
+
+    setupRegionForClientTransactions(totalBuckets, regionName, false, null);
+
+    client.invokeAsync(() -> doKeySetOpTransaction(1, regionName, totalBuckets, false, null));
+
+    // Should cause TXId(server1, 1) to be executed on server2
+    server1.invoke(() -> doPutOpTransaction(regionName, totalBuckets));
+  }
+
+  private void doKeySetOpTransaction(int firstGetKey, String regionName, int totalBuckets,
+      boolean withReplicateRegion, String region2Name) {
+    Region<Integer, String> region = getCache().getRegion(regionName);
+    TXManagerImpl txMgr = (TXManagerImpl) getCache().getCacheTransactionManager();
+    txMgr.begin();
+    region.get(firstGetKey); // starts TXState on a server with the primary bucket of the key
+    verifyKeySetOp(totalBuckets, region);
+
+    if (withReplicateRegion) {
+      Region<Integer, String> region2 = getCache().getRegion(region2Name);
+      int num = totalBuckets + 1;
+      region2.put(num, "" + num);
+      verifyKeySetOp(num, region2);
+    }
+    txMgr.rollback();
+  }
+
+  private void verifyKeySetOp(int expected, Region<Integer, String> region) {
+    Set<Integer> keys = region.keySet();
+    assertEquals(expected, keys.size());
+    for (Integer key : keys) {
+      assertTrue(key <= expected);
+    }
+  }
+
+  private void doPutOpTransaction(String regionName, int totalBuckets) throws InterruptedException {
+    TXManagerImpl txMgr = (TXManagerImpl) getCache().getCacheTransactionManager();
+    Region<Integer, String> region = getCache().getRegion(regionName);
+    txMgr.begin();
+    region.put(2, "NEWVALUE");
+    Thread.currentThread().sleep(100);
+    txMgr.commit();
+  }
+
+  private void doSizeOpTransactions(String regionName, int totalBuckets, String region2Name) {
+    for (int i = 1; i <= totalBuckets; i++) {
+      doSizeOpTransaction(i, regionName, totalBuckets, region2Name);
+    }
+  }
+
+  private void doSizeOpTransaction(int key, String regionName, int totalBuckets,
+      String region2Name) {
+    Region<Integer, String> region = getCache().getRegion(regionName);
+    Region<Integer, String> region2 = getCache().getRegion(region2Name);
+    TXManagerImpl txMgr = (TXManagerImpl) getCache().getCacheTransactionManager();
+    txMgr.begin();
+    region.get(key); // starts TXState on different servers
+    assertEquals(totalBuckets, region.size());
+    int num = totalBuckets + 1;
+    region2.put(num, "" + num);
+    assertEquals(num, region2.size());
+    txMgr.rollback();
+  }
+
+  @Test
+  public void testSizeOpInTransaction() {
+    Host host = Host.getHost(0);
+    VM client = host.getVM(2);
+    String regionName = "region";
+    String region2Name = "region2";
+    int totalBuckets = 2;
+    setupRegionForClientTransactions(totalBuckets, regionName, true, region2Name);
+
+    client.invoke(() -> doSizeOpTransactions(regionName, totalBuckets, region2Name));
+  }
+
+  private void setupRegionForClientTransactions(int totalBuckets, String regionName,
+      boolean withReplicateRegion, String region2Name) {
+    Host host = Host.getHost(0);
+    VM server1 = host.getVM(0);
+    VM server2 = host.getVM(1);
+    VM client = host.getVM(2);
+    int port = createRegionsAndStartServer(server1, true);
+
+    // Create PR
+    server1.invoke(() -> {
+      createSubscriptionRegion(false, regionName, 0, totalBuckets);
+      Region<Integer, String> region = getCache().getRegion(regionName);
+      // should create first bucket on server1
+      region.put(1, "VALUE-1");
+    });
+
+    // Create PR
+    createRegionOnServer(server2);
+    server2.invoke(() -> {
+      createSubscriptionRegion(false, regionName, 0, totalBuckets);
+      Region<Integer, String> region = getCache().getRegion(regionName);
+      for (int i = totalBuckets; i > 1; i--) {
+        region.put(i, "VALUE-" + i);
+      }
+    });
+
+    // Create RR
+    if (withReplicateRegion) {
+      server1.invoke(() -> createReplicateRegion(region2Name));
+      server2.invoke(() -> {
+        createReplicateRegion(region2Name);
+        Region<Integer, String> region = getCache().getRegion(region2Name);
+        for (int i = totalBuckets; i > 0; i--) {
+          region.put(i, "" + i);
+        }
+      });
+    }
+
+    // Create region client region
+    client.invoke(() -> {
+      createClient(port, regionName);
+      if (withReplicateRegion) {
+        createClient(port, region2Name);
+      }
+    });
+  }
+
+  @Test
+  public void testKeySetOpInTransaction() {
+    Host host = Host.getHost(0);
+    VM client = host.getVM(2);
+    String regionName = "region";
+    String region2Name = "region2";
+    int totalBuckets = 2;
+    setupRegionForClientTransactions(totalBuckets, regionName, true, region2Name);
+
+    client.invoke(() -> doKeySetOpTransactions(regionName, totalBuckets, true, region2Name));
+  }
+
+  private void doKeySetOpTransactions(String regionName, int totalBuckets,
+      boolean withReplicateRegion, String region2Name) {
+    for (int i = 1; i <= totalBuckets; i++) {
+      doKeySetOpTransaction(i, regionName, totalBuckets, withReplicateRegion, region2Name);
+    }
+  }
+
+  private void createReplicateRegion(String regionName) {
+    RegionFactory rf = getCache().createRegionFactory(RegionShortcut.REPLICATE);
+    Region<Integer, String> region = rf.create(regionName);
+  }
 }
