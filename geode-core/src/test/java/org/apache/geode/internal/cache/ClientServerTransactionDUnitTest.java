@@ -4156,15 +4156,40 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
     VM client = host.getVM(2);
     int port = createRegionsAndStartServer(server1, true);
 
-    // Create PR
-    server1.invoke(() -> {
-      createSubscriptionRegion(false, regionName, 0, totalBuckets);
-      Region<Integer, String> region = getCache().getRegion(regionName);
-      // should create first bucket on server1
-      region.put(1, "VALUE-1");
-    });
+    createPRAndInitABucketOnServer1(totalBuckets, regionName, server1);
 
-    // Create PR
+    createPRAndInitOtherBucketsOnServer2(totalBuckets, regionName, server2);
+
+    if (withReplicateRegion) {
+      initReplicateRegion(totalBuckets, region2Name, server1, server2);
+    }
+
+    createRegionOnClient(regionName, withReplicateRegion, region2Name, client, port);
+  }
+
+  private void createRegionOnClient(String regionName, boolean withReplicateRegion,
+      String region2Name, VM client, int port) {
+    client.invoke(() -> {
+      createClient(port, regionName);
+      if (withReplicateRegion) {
+        createClient(port, region2Name);
+      }
+    });
+  }
+
+  private void initReplicateRegion(int totalBuckets, String region2Name, VM server1, VM server2) {
+    server1.invoke(() -> createReplicateRegion(region2Name));
+    server2.invoke(() -> {
+      createReplicateRegion(region2Name);
+      Region<Integer, String> region = getCache().getRegion(region2Name);
+      for (int i = totalBuckets; i > 0; i--) {
+        region.put(i, "" + i);
+      }
+    });
+  }
+
+  private void createPRAndInitOtherBucketsOnServer2(int totalBuckets, String regionName,
+      VM server2) {
     createRegionOnServer(server2);
     server2.invoke(() -> {
       createSubscriptionRegion(false, regionName, 0, totalBuckets);
@@ -4173,25 +4198,14 @@ public class ClientServerTransactionDUnitTest extends RemoteTransactionDUnitTest
         region.put(i, "VALUE-" + i);
       }
     });
+  }
 
-    // Create RR
-    if (withReplicateRegion) {
-      server1.invoke(() -> createReplicateRegion(region2Name));
-      server2.invoke(() -> {
-        createReplicateRegion(region2Name);
-        Region<Integer, String> region = getCache().getRegion(region2Name);
-        for (int i = totalBuckets; i > 0; i--) {
-          region.put(i, "" + i);
-        }
-      });
-    }
-
-    // Create region client region
-    client.invoke(() -> {
-      createClient(port, regionName);
-      if (withReplicateRegion) {
-        createClient(port, region2Name);
-      }
+  private void createPRAndInitABucketOnServer1(int totalBuckets, String regionName, VM server1) {
+    server1.invoke(() -> {
+      createSubscriptionRegion(false, regionName, 0, totalBuckets);
+      Region<Integer, String> region = getCache().getRegion(regionName);
+      // should create first bucket on server1
+      region.put(1, "VALUE-1");
     });
   }
 
