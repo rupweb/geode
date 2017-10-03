@@ -14,7 +14,9 @@
  */
 package org.apache.geode.internal.cache;
 
-import static java.lang.Integer.*;
+import static java.lang.Integer.MAX_VALUE;
+import static java.lang.Integer.getInteger;
+import static java.lang.Integer.valueOf;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,7 +29,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.geode.internal.cache.tier.sockets.ServerConnectionFactory;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelCriterion;
@@ -37,7 +38,6 @@ import org.apache.geode.InvalidValueException;
 import org.apache.geode.cache.AttributesFactory;
 import org.apache.geode.cache.ClientSession;
 import org.apache.geode.cache.DataPolicy;
-import org.apache.geode.cache.DiskStore;
 import org.apache.geode.cache.DiskStoreFactory;
 import org.apache.geode.cache.DynamicRegionFactory;
 import org.apache.geode.cache.EvictionAction;
@@ -70,6 +70,8 @@ import org.apache.geode.internal.cache.tier.Acceptor;
 import org.apache.geode.internal.cache.tier.sockets.AcceptorImpl;
 import org.apache.geode.internal.cache.tier.sockets.CacheClientNotifier;
 import org.apache.geode.internal.cache.tier.sockets.ClientProxyMembershipID;
+import org.apache.geode.internal.cache.tier.sockets.GenericProtocolServerConnection;
+import org.apache.geode.internal.cache.tier.sockets.ServerConnectionFactory;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
@@ -95,7 +97,7 @@ public class CacheServerImpl extends AbstractCacheServer implements Distribution
   /**
    * The server connection factory, that provides either a
    * {@link org.apache.geode.internal.cache.tier.sockets.LegacyServerConnection} or a new
-   * {@link org.apache.geode.internal.cache.tier.sockets.GenericProtocolServerConnection}
+   * {@link GenericProtocolServerConnection}
    */
   private final ServerConnectionFactory serverConnectionFactory = new ServerConnectionFactory();
 

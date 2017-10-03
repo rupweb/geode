@@ -15,17 +15,17 @@
 package org.apache.geode.internal.protocol.operations;
 
 import org.apache.geode.annotations.Experimental;
-import org.apache.geode.internal.cache.tier.sockets.MessageExecutionContext;
 import org.apache.geode.internal.exception.InvalidExecutionContextException;
-import org.apache.geode.internal.protocol.protobuf.ProtobufOpsProcessor;
-import org.apache.geode.internal.protocol.protobuf.Result;
+import org.apache.geode.internal.protocol.MessageExecutionContext;
+import org.apache.geode.internal.protocol.protobuf.ProtobufOperationsProcessor;
+import org.apache.geode.internal.protocol.responses.Result;
 import org.apache.geode.internal.serialization.SerializationService;
 
 /**
  * This interface is implemented by a object capable of handling request types 'Req' and returning
  * an a response of type 'Resp'
  *
- * See {@link ProtobufOpsProcessor}
+ * See {@link ProtobufOperationsProcessor}
  */
 @Experimental
 public interface OperationHandler<Req, Resp> {

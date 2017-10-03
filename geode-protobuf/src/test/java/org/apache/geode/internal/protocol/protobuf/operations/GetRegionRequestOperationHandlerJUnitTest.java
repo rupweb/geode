@@ -30,16 +30,15 @@ import org.apache.geode.cache.DataPolicy;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.RegionAttributes;
 import org.apache.geode.cache.Scope;
-import org.apache.geode.internal.cache.tier.sockets.MessageExecutionContext;
+import org.apache.geode.internal.protocol.MessageExecutionContext;
 import org.apache.geode.internal.protocol.MessageUtil;
 import org.apache.geode.internal.protocol.protobuf.BasicTypes;
-import org.apache.geode.internal.protocol.protobuf.ClientProtocol;
-import org.apache.geode.internal.protocol.protobuf.Failure;
 import org.apache.geode.internal.protocol.protobuf.ProtocolErrorCode;
 import org.apache.geode.internal.protocol.protobuf.RegionAPI;
-import org.apache.geode.internal.protocol.protobuf.Result;
 import org.apache.geode.internal.protocol.protobuf.statistics.NoOpProtobufStatistics;
-import org.apache.geode.security.server.NoOpAuthorizer;
+import org.apache.geode.internal.protocol.responses.Failure;
+import org.apache.geode.internal.protocol.responses.Result;
+import org.apache.geode.internal.protocol.security.server.NoOpAuthorizer;
 import org.apache.geode.test.junit.categories.UnitTest;
 
 @Category(UnitTest.class)
@@ -70,10 +69,10 @@ public class GetRegionRequestOperationHandlerJUnitTest extends OperationHandlerJ
     when(regionAttributesStub.getValueConstraint()).thenReturn(Integer.class);
     when(regionAttributesStub.getScope()).thenReturn(Scope.DISTRIBUTED_ACK);
 
-
+    MessageExecutionContext messageExecutionContext = new MessageExecutionContext(cacheStub, null,
+        null, new NoOpProtobufStatistics(), new NoOpAuthorizer());
     Result<RegionAPI.GetRegionResponse> result = operationHandler.process(serializationServiceStub,
-        MessageUtil.makeGetRegionRequest(TEST_REGION1),
-        new MessageExecutionContext(cacheStub, new NoOpAuthorizer(), new NoOpProtobufStatistics()));
+        MessageUtil.makeGetRegionRequest(TEST_REGION1), messageExecutionContext);
     RegionAPI.GetRegionResponse response = result.getMessage();
     BasicTypes.Region region = response.getRegion();
     Assert.assertEquals(TEST_REGION1, region.getName());
@@ -85,19 +84,16 @@ public class GetRegionRequestOperationHandlerJUnitTest extends OperationHandlerJ
     Assert.assertEquals(10, region.getSize());
   }
 
-  private ClientProtocol.Request createRequestMessage(RegionAPI.GetRegionRequest getRegionRequest) {
-    return ClientProtocol.Request.newBuilder().setGetRegionRequest(getRegionRequest).build();
-  }
-
   @Test
   public void processReturnsNoCacheRegions() throws Exception {
     Cache emptyCache = mock(Cache.class);
     when(emptyCache.rootRegions())
         .thenReturn(Collections.unmodifiableSet(new HashSet<Region<String, String>>()));
     String unknownRegionName = "UNKNOWN_REGION";
+    MessageExecutionContext messageExecutionContext = new MessageExecutionContext(cacheStub, null,
+        null, new NoOpProtobufStatistics(), new NoOpAuthorizer());
     Result<RegionAPI.GetRegionResponse> result = operationHandler.process(serializationServiceStub,
-        MessageUtil.makeGetRegionRequest(unknownRegionName), new MessageExecutionContext(emptyCache,
-            new NoOpAuthorizer(), new NoOpProtobufStatistics()));
+        MessageUtil.makeGetRegionRequest(unknownRegionName), messageExecutionContext);
     Assert.assertTrue(result instanceof Failure);
     Assert.assertEquals(ProtocolErrorCode.REGION_NOT_FOUND.codeValue,
         result.getErrorMessage().getError().getErrorCode());

@@ -17,12 +17,14 @@ package org.apache.geode.internal.protocol.protobuf;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.annotations.Experimental;
-import org.apache.geode.internal.cache.tier.sockets.MessageExecutionContext;
 import org.apache.geode.internal.exception.InvalidExecutionContextException;
 import org.apache.geode.internal.logging.LogService;
+import org.apache.geode.internal.protocol.MessageExecutionContext;
 import org.apache.geode.internal.protocol.protobuf.registry.OperationContextRegistry;
 import org.apache.geode.internal.protocol.protobuf.statistics.ProtobufClientStatistics;
 import org.apache.geode.internal.protocol.protobuf.utilities.ProtobufResponseUtilities;
+import org.apache.geode.internal.protocol.responses.Failure;
+import org.apache.geode.internal.protocol.responses.Result;
 import org.apache.geode.internal.serialization.SerializationService;
 
 /**
@@ -30,27 +32,30 @@ import org.apache.geode.internal.serialization.SerializationService;
  * it to the appropriate handler.
  */
 @Experimental
-public class ProtobufOpsProcessor {
+public class ProtobufOperationsProcessor {
 
   private final OperationContextRegistry operationContextRegistry;
   private final SerializationService serializationService;
-  private static final Logger logger = LogService.getLogger(ProtobufOpsProcessor.class);
+  private static final Logger logger = LogService.getLogger(ProtobufOperationsProcessor.class);
 
-  public ProtobufOpsProcessor(SerializationService serializationService,
+  ProtobufOperationsProcessor(SerializationService serializationService,
       OperationContextRegistry operationContextRegistry) {
     this.serializationService = serializationService;
     this.operationContextRegistry = operationContextRegistry;
   }
 
-  public ClientProtocol.Response process(ClientProtocol.Request request,
-      MessageExecutionContext context) {
+  public ClientProtocol.Response process(final ClientProtocol.Request request,
+      final MessageExecutionContext context) {
     ClientProtocol.Request.RequestAPICase requestType = request.getRequestAPICase();
     logger.debug("Processing request of type {}", requestType);
     OperationContext operationContext = operationContextRegistry.getOperationContext(requestType);
     ClientProtocol.Response.Builder builder;
     Result result;
+
     try {
-      if (context.getAuthorizer().authorize(operationContext.getAccessPermissionRequired())) {
+      boolean authorized = context.getAuthorizer().authorize(context.getAuthenticationToken(),
+          operationContext.getAccessPermissionRequired(), context.getSecurityManager());
+      if (authorized) {
         result = operationContext.getOperationHandler().process(serializationService,
             operationContext.getFromRequest().apply(request), context);
       } else {

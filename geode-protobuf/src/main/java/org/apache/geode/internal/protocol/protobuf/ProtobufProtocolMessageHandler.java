@@ -23,10 +23,10 @@ import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.StatisticsFactory;
 import org.apache.geode.annotations.Experimental;
-import org.apache.geode.internal.cache.tier.sockets.ClientProtocolMessageHandler;
 import org.apache.geode.internal.cache.tier.sockets.ClientProtocolStatistics;
-import org.apache.geode.internal.cache.tier.sockets.MessageExecutionContext;
 import org.apache.geode.internal.logging.LogService;
+import org.apache.geode.internal.protocol.ClientProtocolMessageHandler;
+import org.apache.geode.internal.protocol.MessageExecutionContext;
 import org.apache.geode.internal.protocol.exception.InvalidProtocolMessageException;
 import org.apache.geode.internal.protocol.protobuf.registry.OperationContextRegistry;
 import org.apache.geode.internal.protocol.protobuf.serializer.ProtobufProtocolSerializer;
@@ -40,16 +40,21 @@ import org.apache.geode.internal.protocol.protobuf.utilities.ProtobufUtilities;
  * and then pushes it to the output stream.
  */
 @Experimental
-public class ProtobufStreamProcessor implements ClientProtocolMessageHandler {
+public class ProtobufProtocolMessageHandler implements ClientProtocolMessageHandler {
   private final ProtobufProtocolSerializer protobufProtocolSerializer;
-  private final ProtobufOpsProcessor protobufOpsProcessor;
+  private final ProtobufOperationsProcessor protobufOperationProcessor;
+  private final OperationContextRegistry operationContextRegistry;
+  private final ProtobufSerializationService protobufSerializationService;
   private ProtobufClientStatistics statistics;
   private static final Logger logger = LogService.getLogger();
 
-  public ProtobufStreamProcessor() {
+  public ProtobufProtocolMessageHandler() {
     protobufProtocolSerializer = new ProtobufProtocolSerializer();
-    protobufOpsProcessor = new ProtobufOpsProcessor(new ProtobufSerializationService(),
-        new OperationContextRegistry());
+    operationContextRegistry = new OperationContextRegistry();
+    protobufSerializationService = new ProtobufSerializationService();
+    protobufOperationProcessor =
+        new ProtobufOperationsProcessor(protobufSerializationService, operationContextRegistry);
+
   }
 
   @Override
@@ -66,30 +71,43 @@ public class ProtobufStreamProcessor implements ClientProtocolMessageHandler {
   public void receiveMessage(InputStream inputStream, OutputStream outputStream,
       MessageExecutionContext executionContext) throws IOException {
     try {
-      processOneMessage(inputStream, outputStream, executionContext);
+      ClientProtocol.Message incomingMessage = deserializeMessageFromInputStream(inputStream);
+      statistics.messageReceived(incomingMessage.getSerializedSize());
+      ClientProtocol.Message outgoingMessage = processMessage(incomingMessage, executionContext);
+      statistics.messageSent(outgoingMessage.getSerializedSize());
+      serializeMessageToOutputStream(outgoingMessage, outputStream);
     } catch (InvalidProtocolMessageException e) {
       throw new IOException(e);
     }
   }
 
-  private void processOneMessage(InputStream inputStream, OutputStream outputStream,
-      MessageExecutionContext executionContext)
-      throws InvalidProtocolMessageException, IOException {
+  @Override
+  public String getMessageHandlerProtocolName() {
+    return "PROTOBUF";
+  }
+
+  private ClientProtocol.Message processMessage(ClientProtocol.Message message,
+      MessageExecutionContext executionContext) {
+    ClientProtocol.Response response =
+        protobufOperationProcessor.process(message.getRequest(), executionContext);
+    ClientProtocol.MessageHeader responseHeader =
+        ProtobufUtilities.createMessageHeaderForRequest(message);
+    return ProtobufUtilities.createProtobufResponse(responseHeader, response);
+  }
+
+  private void serializeMessageToOutputStream(ClientProtocol.Message responseMessage,
+      OutputStream outputStream) throws IOException {
+    protobufProtocolSerializer.serialize(responseMessage, outputStream);
+  }
+
+  private ClientProtocol.Message deserializeMessageFromInputStream(InputStream inputStream)
+      throws InvalidProtocolMessageException, EOFException {
     ClientProtocol.Message message = protobufProtocolSerializer.deserialize(inputStream);
     if (message == null) {
       String errorMessage = "Tried to deserialize protobuf message at EOF";
       logger.warn(errorMessage);
       throw new EOFException(errorMessage);
     }
-    statistics.messageReceived(message.getSerializedSize());
-
-    ClientProtocol.Request request = message.getRequest();
-    ClientProtocol.Response response = protobufOpsProcessor.process(request, executionContext);
-    ClientProtocol.MessageHeader responseHeader =
-        ProtobufUtilities.createMessageHeaderForRequest(message);
-    ClientProtocol.Message responseMessage =
-        ProtobufUtilities.createProtobufResponse(responseHeader, response);
-    statistics.messageSent(responseMessage.getSerializedSize());
-    protobufProtocolSerializer.serialize(responseMessage, outputStream);
+    return message;
   }
 }

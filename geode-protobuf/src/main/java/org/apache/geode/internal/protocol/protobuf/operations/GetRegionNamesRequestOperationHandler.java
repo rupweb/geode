@@ -18,13 +18,13 @@ import java.util.Set;
 
 import org.apache.geode.annotations.Experimental;
 import org.apache.geode.cache.Region;
-import org.apache.geode.internal.cache.tier.sockets.MessageExecutionContext;
 import org.apache.geode.internal.exception.InvalidExecutionContextException;
+import org.apache.geode.internal.protocol.MessageExecutionContext;
 import org.apache.geode.internal.protocol.operations.OperationHandler;
 import org.apache.geode.internal.protocol.protobuf.RegionAPI;
-import org.apache.geode.internal.protocol.protobuf.Result;
-import org.apache.geode.internal.protocol.protobuf.Success;
 import org.apache.geode.internal.protocol.protobuf.utilities.ProtobufResponseUtilities;
+import org.apache.geode.internal.protocol.responses.Result;
+import org.apache.geode.internal.protocol.responses.Success;
 import org.apache.geode.internal.serialization.SerializationService;
 
 @Experimental

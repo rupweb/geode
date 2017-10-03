@@ -12,37 +12,38 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.apache.geode.internal.protocol.protobuf;
+package org.apache.geode.internal.protocol.responses;
 
 import java.util.function.Function;
 
 import org.apache.geode.annotations.Experimental;
+import org.apache.geode.internal.protocol.protobuf.ClientProtocol;
 
 @Experimental
-public class Failure<SuccessType> implements Result<SuccessType> {
-  private final ClientProtocol.ErrorResponse errorResponse;
+public class Success<SuccessType> implements Result<SuccessType> {
+  private final SuccessType successResponse;
 
-  public Failure(ClientProtocol.ErrorResponse errorResponse) {
-    this.errorResponse = errorResponse;
+  public Success(SuccessType successResponse) {
+    this.successResponse = successResponse;
   }
 
-  public static <T> Failure<T> of(ClientProtocol.ErrorResponse errorResponse) {
-    return new Failure<>(errorResponse);
+  public static <T> Success<T> of(T result) {
+    return new Success<>(result);
   }
 
   @Override
   public <T> T map(Function<SuccessType, T> successFunction,
       Function<ClientProtocol.ErrorResponse, T> errorFunction) {
-    return errorFunction.apply(errorResponse);
+    return successFunction.apply(successResponse);
   }
 
   @Override
   public SuccessType getMessage() {
-    throw new RuntimeException("This is not a Success result");
+    return successResponse;
   }
 
   @Override
   public ClientProtocol.ErrorResponse getErrorMessage() {
-    return errorResponse;
+    throw new RuntimeException("This is a not Failure result");
   }
 }

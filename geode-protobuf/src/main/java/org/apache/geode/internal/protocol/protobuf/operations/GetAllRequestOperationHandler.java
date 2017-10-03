@@ -14,10 +14,6 @@
  */
 package org.apache.geode.internal.protocol.protobuf.operations;
 
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.annotations.Experimental;
@@ -25,18 +21,18 @@ import org.apache.geode.cache.CacheLoaderException;
 import org.apache.geode.cache.PartitionedRegionStorageException;
 import org.apache.geode.cache.Region;
 import org.apache.geode.cache.TimeoutException;
-import org.apache.geode.internal.cache.tier.sockets.MessageExecutionContext;
 import org.apache.geode.internal.exception.InvalidExecutionContextException;
 import org.apache.geode.internal.logging.LogService;
+import org.apache.geode.internal.protocol.MessageExecutionContext;
 import org.apache.geode.internal.protocol.operations.OperationHandler;
 import org.apache.geode.internal.protocol.protobuf.BasicTypes;
-import org.apache.geode.internal.protocol.protobuf.RegionAPI;
-import org.apache.geode.internal.protocol.protobuf.Failure;
 import org.apache.geode.internal.protocol.protobuf.ProtocolErrorCode;
-import org.apache.geode.internal.protocol.protobuf.Result;
-import org.apache.geode.internal.protocol.protobuf.Success;
+import org.apache.geode.internal.protocol.protobuf.RegionAPI;
 import org.apache.geode.internal.protocol.protobuf.utilities.ProtobufResponseUtilities;
 import org.apache.geode.internal.protocol.protobuf.utilities.ProtobufUtilities;
+import org.apache.geode.internal.protocol.responses.Failure;
+import org.apache.geode.internal.protocol.responses.Result;
+import org.apache.geode.internal.protocol.responses.Success;
 import org.apache.geode.internal.serialization.SerializationService;
 import org.apache.geode.internal.serialization.exception.UnsupportedEncodingTypeException;
 import org.apache.geode.internal.serialization.registry.exception.CodecNotRegisteredForTypeException;
@@ -58,18 +54,16 @@ public class GetAllRequestOperationHandler
           .makeErrorResponse(ProtocolErrorCode.REGION_NOT_FOUND.codeValue, "Region not found"));
     }
 
-    Map<Boolean, List<Object>> resultsCollection = request.getKeyList().stream()
-        .map((key) -> processOneMessage(serializationService, region, key))
-        .collect(Collectors.partitioningBy(x -> x instanceof BasicTypes.Entry));
     RegionAPI.GetAllResponse.Builder responseBuilder = RegionAPI.GetAllResponse.newBuilder();
 
-    for (Object entry : resultsCollection.get(true)) {
-      responseBuilder.addEntries((BasicTypes.Entry) entry);
-    }
-
-    for (Object entry : resultsCollection.get(false)) {
-      responseBuilder.addFailures((BasicTypes.KeyedError) entry);
-    }
+    request.getKeyList().stream().map((key) -> processOneMessage(serializationService, region, key))
+        .forEach(entry -> {
+          if (entry instanceof BasicTypes.Entry) {
+            responseBuilder.addEntries((BasicTypes.Entry) entry);
+          } else if (entry instanceof BasicTypes.KeyedError) {
+            responseBuilder.addFailures((BasicTypes.KeyedError) entry);
+          }
+        });
 
     return Success.of(responseBuilder.build());
   }

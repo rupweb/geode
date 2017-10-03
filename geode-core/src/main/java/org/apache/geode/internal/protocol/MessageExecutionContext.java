@@ -13,40 +13,47 @@
  * the License.
  */
 
-package org.apache.geode.internal.cache.tier.sockets;
+package org.apache.geode.internal.protocol;
 
 import org.apache.geode.annotations.Experimental;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.distributed.Locator;
-import org.apache.geode.distributed.internal.InternalLocator;
+import org.apache.geode.internal.cache.tier.sockets.ClientProtocolStatistics;
+import org.apache.geode.internal.cache.tier.sockets.NoOpStatistics;
 import org.apache.geode.internal.exception.InvalidExecutionContextException;
-import org.apache.geode.security.server.Authorizer;
-import org.apache.geode.security.server.NoOpAuthorizer;
+import org.apache.geode.internal.protocol.security.server.Authorizer;
+import org.apache.geode.internal.protocol.security.server.NoOpAuthorizer;
+import org.apache.geode.security.SecurityManager;
 
 @Experimental
 public class MessageExecutionContext {
   private Cache cache;
   private Locator locator;
-  private Authorizer authorizer;
-  private ClientProtocolStatistics statistics;
+  private final Object authenticationToken;
+  private final SecurityManager securityManager;
+  private final ClientProtocolStatistics statistics;
+  private final Authorizer authorizer;
 
-
-  public MessageExecutionContext(Cache cache, Authorizer streamAuthorizer,
-      ClientProtocolStatistics statistics) {
+  public MessageExecutionContext(Cache cache, Object authenticationToken,
+      SecurityManager securityManager, ClientProtocolStatistics statistics, Authorizer authorizer) {
     this.cache = cache;
-    this.authorizer = streamAuthorizer;
+    this.authenticationToken = authenticationToken;
+    this.securityManager = securityManager;
     this.statistics = statistics;
+    this.authorizer = authorizer;
   }
 
-  public MessageExecutionContext(InternalLocator locator) {
+
+  public MessageExecutionContext(Locator locator) {
     this.locator = locator;
-    // set a no-op authorizer until such time as locators implement authentication
-    // and authorization checks
-    this.authorizer = new NoOpAuthorizer();
+    this.authenticationToken = null;
+    this.securityManager = null;
     this.statistics = new NoOpStatistics();
+    this.authorizer = new NoOpAuthorizer();
   }
 
   /**
+   *
    * Returns the cache associated with this execution
    * <p>
    *
@@ -75,19 +82,38 @@ public class MessageExecutionContext {
   }
 
   /**
-   * Returns the Authorizer associated with this execution. This can be used to perform
+   * Returns the AuthenticatedTokenassociated with this execution. This can be used to perform
    * authorization checks for the user associated with this thread.
    */
-  public Authorizer getAuthorizer() {
-    return authorizer;
+  public Object getAuthenticationToken() {
+    return authenticationToken;
+  }
+
+  /**
+   * Returns the security manager.
+   *
+   * @return SecurityManager
+   */
+  public SecurityManager getSecurityManager() {
+    return securityManager;
   }
 
   /**
    * Returns the statistics for recording operation stats. In a unit test environment this may not
    * be a protocol-specific statistics implementation.
-   *
+   * 
+   * 
    */
   public ClientProtocolStatistics getStatistics() {
     return statistics;
+  }
+
+  /**
+   * Returns the associated Authorizer for this MessageContext.
+   * 
+   * @return Authorizer
+   */
+  public Authorizer getAuthorizer() {
+    return authorizer;
   }
 }

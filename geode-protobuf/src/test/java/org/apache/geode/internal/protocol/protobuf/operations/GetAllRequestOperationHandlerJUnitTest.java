@@ -33,18 +33,18 @@ import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.CacheLoaderException;
 import org.apache.geode.cache.Region;
-import org.apache.geode.internal.cache.tier.sockets.MessageExecutionContext;
 import org.apache.geode.internal.exception.InvalidExecutionContextException;
+import org.apache.geode.internal.protocol.MessageExecutionContext;
 import org.apache.geode.internal.protocol.protobuf.BasicTypes;
 import org.apache.geode.internal.protocol.protobuf.RegionAPI;
-import org.apache.geode.internal.protocol.protobuf.Result;
-import org.apache.geode.internal.protocol.protobuf.Success;
 import org.apache.geode.internal.protocol.protobuf.statistics.NoOpProtobufStatistics;
 import org.apache.geode.internal.protocol.protobuf.utilities.ProtobufRequestUtilities;
 import org.apache.geode.internal.protocol.protobuf.utilities.ProtobufUtilities;
+import org.apache.geode.internal.protocol.responses.Result;
+import org.apache.geode.internal.protocol.responses.Success;
+import org.apache.geode.internal.protocol.security.server.NoOpAuthorizer;
 import org.apache.geode.internal.serialization.exception.UnsupportedEncodingTypeException;
 import org.apache.geode.internal.serialization.registry.exception.CodecNotRegisteredForTypeException;
-import org.apache.geode.security.server.NoOpAuthorizer;
 import org.apache.geode.test.junit.categories.UnitTest;
 
 @Category(UnitTest.class)
@@ -59,6 +59,7 @@ public class GetAllRequestOperationHandlerJUnitTest extends OperationHandlerJUni
   private static final String TEST_INVALID_KEY = "I'm a naughty key!";
   private static final String NO_VALUE_PRESENT_FOR_THIS_KEY = "no value present for this key";
   private Region regionStub;
+  private MessageExecutionContext messageExecutionContext;
 
   @Before
   public void setUp() throws Exception {
@@ -74,13 +75,15 @@ public class GetAllRequestOperationHandlerJUnitTest extends OperationHandlerJUni
 
     when(cacheStub.getRegion(TEST_REGION)).thenReturn(regionStub);
     operationHandler = new GetAllRequestOperationHandler();
+
+    messageExecutionContext = new MessageExecutionContext(cacheStub, null, null,
+        new NoOpProtobufStatistics(), new NoOpAuthorizer());
   }
 
   @Test
   public void processReturnsExpectedValuesForValidKeys() throws Exception {
     Result<RegionAPI.GetAllResponse> result = operationHandler.process(serializationServiceStub,
-        generateTestRequest(true, false),
-        new MessageExecutionContext(cacheStub, new NoOpAuthorizer(), new NoOpProtobufStatistics()));
+        generateTestRequest(true, false), messageExecutionContext);
 
     assertTrue(result instanceof Success);
 
@@ -97,11 +100,10 @@ public class GetAllRequestOperationHandlerJUnitTest extends OperationHandlerJUni
   }
 
   @Test
-  public void processReturnsNoEntriesForNoKeysRequested() throws UnsupportedEncodingTypeException,
-      CodecNotRegisteredForTypeException, InvalidExecutionContextException {
+  public void processReturnsNoEntriesForNoKeysRequested() throws InvalidExecutionContextException,
+      UnsupportedEncodingTypeException, CodecNotRegisteredForTypeException {
     Result<RegionAPI.GetAllResponse> result = operationHandler.process(serializationServiceStub,
-        generateTestRequest(false, false),
-        new MessageExecutionContext(cacheStub, new NoOpAuthorizer(), new NoOpProtobufStatistics()));
+        generateTestRequest(false, false), messageExecutionContext);
 
     assertTrue(result instanceof Success);
 
@@ -117,9 +119,8 @@ public class GetAllRequestOperationHandlerJUnitTest extends OperationHandlerJUni
         NO_VALUE_PRESENT_FOR_THIS_KEY));
     RegionAPI.GetAllRequest getAllRequest =
         ProtobufRequestUtilities.createGetAllRequest(TEST_REGION, testKeys);
-    Result<RegionAPI.GetAllResponse> result = operationHandler.process(serializationServiceStub,
-        getAllRequest,
-        new MessageExecutionContext(cacheStub, new NoOpAuthorizer(), new NoOpProtobufStatistics()));
+    Result<RegionAPI.GetAllResponse> result =
+        operationHandler.process(serializationServiceStub, getAllRequest, messageExecutionContext);
 
     assertTrue(result instanceof Success);
     RegionAPI.GetAllResponse message = result.getMessage();
@@ -131,11 +132,10 @@ public class GetAllRequestOperationHandlerJUnitTest extends OperationHandlerJUni
   }
 
   @Test
-  public void multipleKeysWhereOneThrows() throws UnsupportedEncodingTypeException,
-      CodecNotRegisteredForTypeException, InvalidExecutionContextException {
+  public void multipleKeysWhereOneThrows() throws InvalidExecutionContextException,
+      UnsupportedEncodingTypeException, CodecNotRegisteredForTypeException {
     Result<RegionAPI.GetAllResponse> result = operationHandler.process(serializationServiceStub,
-        generateTestRequest(true, true),
-        new MessageExecutionContext(cacheStub, new NoOpAuthorizer(), new NoOpProtobufStatistics()));
+        generateTestRequest(true, true), messageExecutionContext);
 
     assertTrue(result instanceof Success);
 

@@ -17,6 +17,10 @@ package org.apache.geode.internal.protocol.protobuf.utilities;
 import org.apache.geode.annotations.Experimental;
 import org.apache.geode.internal.protocol.protobuf.utilities.exception.UnknownProtobufPrimitiveType;
 
+
+/**
+ * This enums primary use is to serialize Java primitive types with Protobuf
+ */
 @Experimental
 public enum ProtobufPrimitiveTypes {
 

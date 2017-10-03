@@ -30,9 +30,13 @@ import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.tier.Acceptor;
 import org.apache.geode.internal.cache.tier.CachedRegionHelper;
 import org.apache.geode.internal.cache.tier.CommunicationMode;
+import org.apache.geode.internal.protocol.ClientProtocolMessageHandler;
+import org.apache.geode.internal.protocol.MessageExecutionContext;
+import org.apache.geode.internal.protocol.security.server.Authenticator;
+import org.apache.geode.internal.protocol.security.server.Authorizer;
 import org.apache.geode.internal.security.SecurityService;
+import org.apache.geode.security.AuthenticationFailedException;
 import org.apache.geode.security.SecurityManager;
-import org.apache.geode.security.server.Authenticator;
 
 /**
  * Holds the socket and protocol handler for the new client protocol.
@@ -42,6 +46,7 @@ public class GenericProtocolServerConnection extends ServerConnection {
   private final ClientProtocolMessageHandler messageHandler;
   private final SecurityManager securityManager;
   private final Authenticator authenticator;
+  private final Authorizer authorizer;
   private boolean cleanedUp;
   private ClientProxyMembershipID clientProxyMembershipID;
 
@@ -51,13 +56,15 @@ public class GenericProtocolServerConnection extends ServerConnection {
    */
   public GenericProtocolServerConnection(Socket socket, InternalCache c, CachedRegionHelper helper,
       CacheServerStats stats, int hsTimeout, int socketBufferSize, String communicationModeStr,
-      byte communicationMode, Acceptor acceptor, ClientProtocolMessageHandler newClientProtocol,
-      SecurityService securityService, Authenticator authenticator) {
+      byte communicationMode, Acceptor acceptor, SecurityService securityService,
+      ClientProtocolMessageHandler clientProtocolMessageHandler, Authenticator authenticator,
+      Authorizer authorizer) {
     super(socket, c, helper, stats, hsTimeout, socketBufferSize, communicationModeStr,
         communicationMode, acceptor, securityService);
     securityManager = securityService.getSecurityManager();
-    this.messageHandler = newClientProtocol;
+    this.messageHandler = clientProtocolMessageHandler;
     this.authenticator = authenticator;
+    this.authorizer = authorizer;
     this.messageHandler.getStatistics().clientConnected();
 
     setClientProxyMembershipId();
@@ -72,12 +79,15 @@ public class GenericProtocolServerConnection extends ServerConnection {
       InputStream inputStream = socket.getInputStream();
       OutputStream outputStream = socket.getOutputStream();
 
-      if (!authenticator.isAuthenticated()) {
-        authenticator.authenticate(inputStream, outputStream, securityManager);
-      } else {
-        messageHandler.receiveMessage(inputStream, outputStream, new MessageExecutionContext(
-            this.getCache(), authenticator.getAuthorizer(), messageHandler.getStatistics()));
-      }
+      Object authenticationToken =
+          authenticator.authenticate(inputStream, outputStream, securityManager);
+      MessageExecutionContext messageExecutionContext = new MessageExecutionContext(this.getCache(),
+          authenticationToken, securityManager, messageHandler.getStatistics(), authorizer);
+      messageHandler.receiveMessage(inputStream, outputStream, messageExecutionContext);
+    } catch (AuthenticationFailedException e) {
+      logger.warn(e);
+      this.setFlagProcessMessagesAsFalse();
+      setClientDisconnectedException(e);
     } catch (EOFException e) {
       this.setFlagProcessMessagesAsFalse();
       setClientDisconnectedException(e);

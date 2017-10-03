@@ -13,14 +13,16 @@
  * the License.
  */
 
-package org.apache.geode.internal.cache.tier.sockets;
+package org.apache.geode.internal.protocol;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-import org.apache.geode.Statistics;
 import org.apache.geode.StatisticsFactory;
+import org.apache.geode.internal.cache.tier.sockets.ClientProtocolStatistics;
+import org.apache.geode.internal.cache.tier.sockets.GenericProtocolServerConnection;
+import org.apache.geode.internal.cache.tier.sockets.ServerConnectionFactory;
 
 
 /**
@@ -38,4 +40,6 @@ public interface ClientProtocolMessageHandler {
 
   void receiveMessage(InputStream inputStream, OutputStream outputStream,
       MessageExecutionContext executionContext) throws IOException;
+
+  String getMessageHandlerProtocolName();
 }

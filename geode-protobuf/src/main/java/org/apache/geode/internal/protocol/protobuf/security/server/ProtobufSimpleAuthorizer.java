@@ -12,18 +12,21 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.apache.geode.internal.protocol.protobuf;
+package org.apache.geode.internal.protocol.protobuf.security.server;
 
-import java.util.function.Function;
+import org.apache.geode.internal.protocol.security.server.Authorizer;
+import org.apache.geode.security.ResourcePermission;
+import org.apache.geode.security.SecurityManager;
 
-import org.apache.geode.annotations.Experimental;
+public class ProtobufSimpleAuthorizer implements Authorizer {
+  @Override
+  public boolean authorize(Object authenticatedPrincipal, ResourcePermission permissionRequested,
+      SecurityManager securityManager) {
+    return securityManager.authorize(authenticatedPrincipal, permissionRequested);
+  }
 
-@Experimental
-public interface Result<SuccessType> {
-  <T> T map(Function<SuccessType, T> successFunction,
-      Function<ClientProtocol.ErrorResponse, T> errorFunction);
-
-  SuccessType getMessage();
-
-  ClientProtocol.ErrorResponse getErrorMessage();
+  @Override
+  public String getImplementationID() {
+    return "SIMPLE";
+  }
 }

@@ -29,19 +29,19 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.Region;
-import org.apache.geode.internal.cache.tier.sockets.MessageExecutionContext;
+import org.apache.geode.internal.protocol.MessageExecutionContext;
 import org.apache.geode.internal.protocol.protobuf.BasicTypes;
-import org.apache.geode.internal.protocol.protobuf.Failure;
 import org.apache.geode.internal.protocol.protobuf.ProtocolErrorCode;
 import org.apache.geode.internal.protocol.protobuf.RegionAPI;
-import org.apache.geode.internal.protocol.protobuf.Result;
-import org.apache.geode.internal.protocol.protobuf.Success;
 import org.apache.geode.internal.protocol.protobuf.statistics.NoOpProtobufStatistics;
 import org.apache.geode.internal.protocol.protobuf.utilities.ProtobufRequestUtilities;
 import org.apache.geode.internal.protocol.protobuf.utilities.ProtobufUtilities;
+import org.apache.geode.internal.protocol.responses.Failure;
+import org.apache.geode.internal.protocol.responses.Result;
+import org.apache.geode.internal.protocol.responses.Success;
+import org.apache.geode.internal.protocol.security.server.NoOpAuthorizer;
 import org.apache.geode.internal.serialization.exception.UnsupportedEncodingTypeException;
 import org.apache.geode.internal.serialization.registry.exception.CodecNotRegisteredForTypeException;
-import org.apache.geode.security.server.NoOpAuthorizer;
 import org.apache.geode.test.junit.categories.UnitTest;
 
 @Category(UnitTest.class)
@@ -50,6 +50,7 @@ public class PutRequestOperationHandlerJUnitTest extends OperationHandlerJUnitTe
   private final String TEST_VALUE = "99";
   private final String TEST_REGION = "test region";
   private Region regionMock;
+  private MessageExecutionContext messageExecutionContext;
 
   @Before
   public void setUp() throws Exception {
@@ -59,14 +60,15 @@ public class PutRequestOperationHandlerJUnitTest extends OperationHandlerJUnitTe
     when(regionMock.put(TEST_KEY, TEST_VALUE)).thenReturn(1);
 
     when(cacheStub.getRegion(TEST_REGION)).thenReturn(regionMock);
+    messageExecutionContext = new MessageExecutionContext(cacheStub, null, null,
+        new NoOpProtobufStatistics(), new NoOpAuthorizer());
   }
 
   @Test
   public void test_puttingTheEncodedEntryIntoRegion() throws Exception {
     PutRequestOperationHandler operationHandler = new PutRequestOperationHandler();
     Result<RegionAPI.PutResponse> result = operationHandler.process(serializationServiceStub,
-        generateTestRequest(),
-        new MessageExecutionContext(cacheStub, new NoOpAuthorizer(), new NoOpProtobufStatistics()));
+        generateTestRequest(), messageExecutionContext);
 
     assertTrue(result instanceof Success);
 
@@ -94,9 +96,8 @@ public class PutRequestOperationHandlerJUnitTest extends OperationHandlerJUnitTe
     BasicTypes.Entry testEntry = ProtobufUtilities.createEntry(encodedKey, testValue);
     RegionAPI.PutRequest putRequest =
         ProtobufRequestUtilities.createPutRequest(TEST_REGION, testEntry).getPutRequest();
-    Result<RegionAPI.PutResponse> result = operationHandler.process(serializationServiceStub,
-        putRequest,
-        new MessageExecutionContext(cacheStub, new NoOpAuthorizer(), new NoOpProtobufStatistics()));
+    Result<RegionAPI.PutResponse> result =
+        operationHandler.process(serializationServiceStub, putRequest, messageExecutionContext);
 
     assertTrue(result instanceof Failure);
     assertEquals(ProtocolErrorCode.VALUE_ENCODING_ERROR.codeValue,
@@ -108,8 +109,7 @@ public class PutRequestOperationHandlerJUnitTest extends OperationHandlerJUnitTe
     when(cacheStub.getRegion(TEST_REGION)).thenReturn(null);
     PutRequestOperationHandler operationHandler = new PutRequestOperationHandler();
     Result<RegionAPI.PutResponse> result = operationHandler.process(serializationServiceStub,
-        generateTestRequest(),
-        new MessageExecutionContext(cacheStub, new NoOpAuthorizer(), new NoOpProtobufStatistics()));
+        generateTestRequest(), messageExecutionContext);
 
     assertTrue(result instanceof Failure);
     assertEquals(ProtocolErrorCode.REGION_NOT_FOUND.codeValue,
@@ -122,8 +122,7 @@ public class PutRequestOperationHandlerJUnitTest extends OperationHandlerJUnitTe
 
     PutRequestOperationHandler operationHandler = new PutRequestOperationHandler();
     Result<RegionAPI.PutResponse> result = operationHandler.process(serializationServiceStub,
-        generateTestRequest(),
-        new MessageExecutionContext(cacheStub, new NoOpAuthorizer(), new NoOpProtobufStatistics()));
+        generateTestRequest(), messageExecutionContext);
 
     assertTrue(result instanceof Failure);
     assertEquals(ProtocolErrorCode.CONSTRAINT_VIOLATION.codeValue,

@@ -28,16 +28,14 @@ import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.Region;
-import org.apache.geode.internal.cache.tier.sockets.MessageExecutionContext;
 import org.apache.geode.internal.exception.InvalidExecutionContextException;
+import org.apache.geode.internal.protocol.MessageExecutionContext;
 import org.apache.geode.internal.protocol.protobuf.RegionAPI;
-import org.apache.geode.internal.protocol.protobuf.Result;
-import org.apache.geode.internal.protocol.protobuf.Success;
 import org.apache.geode.internal.protocol.protobuf.statistics.NoOpProtobufStatistics;
 import org.apache.geode.internal.protocol.protobuf.utilities.ProtobufRequestUtilities;
-import org.apache.geode.internal.serialization.exception.UnsupportedEncodingTypeException;
-import org.apache.geode.internal.serialization.registry.exception.CodecNotRegisteredForTypeException;
-import org.apache.geode.security.server.NoOpAuthorizer;
+import org.apache.geode.internal.protocol.responses.Result;
+import org.apache.geode.internal.protocol.responses.Success;
+import org.apache.geode.internal.protocol.security.server.NoOpAuthorizer;
 import org.apache.geode.test.junit.categories.UnitTest;
 
 @Category(UnitTest.class)
@@ -45,6 +43,7 @@ public class GetRegionNamesRequestOperationHandlerJUnitTest extends OperationHan
   private final String TEST_REGION1 = "test region 1";
   private final String TEST_REGION2 = "test region 2";
   private final String TEST_REGION3 = "test region 3";
+  private MessageExecutionContext messageExecutionContext;
 
   @Before
   public void setUp() throws Exception {
@@ -60,14 +59,15 @@ public class GetRegionNamesRequestOperationHandlerJUnitTest extends OperationHan
     when(cacheStub.rootRegions()).thenReturn(Collections
         .unmodifiableSet(new HashSet<>(Arrays.asList(region1Stub, region2Stub, region3Stub))));
     operationHandler = new GetRegionNamesRequestOperationHandler();
+    messageExecutionContext = new MessageExecutionContext(cacheStub, null, null,
+        new NoOpProtobufStatistics(), new NoOpAuthorizer());
   }
 
   @Test
-  public void processReturnsCacheRegions() throws UnsupportedEncodingTypeException,
-      CodecNotRegisteredForTypeException, InvalidExecutionContextException {
-    Result<RegionAPI.GetRegionNamesResponse> result = operationHandler.process(
-        serializationServiceStub, ProtobufRequestUtilities.createGetRegionNamesRequest(),
-        new MessageExecutionContext(cacheStub, new NoOpAuthorizer(), new NoOpProtobufStatistics()));
+  public void processReturnsCacheRegions() throws InvalidExecutionContextException {
+    Result<RegionAPI.GetRegionNamesResponse> result =
+        operationHandler.process(serializationServiceStub,
+            ProtobufRequestUtilities.createGetRegionNamesRequest(), messageExecutionContext);
     Assert.assertTrue(result instanceof Success);
 
     RegionAPI.GetRegionNamesResponse getRegionsResponse = result.getMessage();
@@ -89,10 +89,11 @@ public class GetRegionNamesRequestOperationHandlerJUnitTest extends OperationHan
     Cache emptyCache = mock(Cache.class);;
     when(emptyCache.rootRegions())
         .thenReturn(Collections.unmodifiableSet(new HashSet<Region<String, String>>()));
+    messageExecutionContext = new MessageExecutionContext(emptyCache, null, null,
+        new NoOpProtobufStatistics(), new NoOpAuthorizer());
     Result<RegionAPI.GetRegionNamesResponse> result =
         operationHandler.process(serializationServiceStub,
-            ProtobufRequestUtilities.createGetRegionNamesRequest(), new MessageExecutionContext(
-                emptyCache, new NoOpAuthorizer(), new NoOpProtobufStatistics()));
+            ProtobufRequestUtilities.createGetRegionNamesRequest(), messageExecutionContext);
     Assert.assertTrue(result instanceof Success);
 
     RegionAPI.GetRegionNamesResponse getRegionsResponse = result.getMessage();
